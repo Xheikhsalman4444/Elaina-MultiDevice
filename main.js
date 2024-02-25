@@ -33,6 +33,7 @@ import { tmpdir } from 'os'
 import readline from 'readline'
 import { format } from 'util'
 import pino from 'pino'
+import ws from 'ws'
 import {
     useMultiFileAuthState,
     DisconnectReason,
@@ -48,6 +49,7 @@ import {
     mongoDBV2
 } from './lib/mongoDB.js'
 
+const { CONNECTING } = ws
 const { chain } = lodash
 const PORT = process.env.PORT || process.env.SERVER_PORT || 3000
 
@@ -120,7 +122,7 @@ const connectionOptions = {
         version,
         logger: pino({ level: 'silent' }), 
         printQRInTerminal: !usePairingCode, 
-        browser: ['Chrome (Linux)', '', ''],
+        browser: ['Mac OS', 'safari', '5.1.10'],
         auth: { 
          creds: state.creds, 
          keys: makeCacheableSignalKeyStore(state.keys, pino().child({ 
@@ -154,7 +156,8 @@ const connectionOptions = {
                 }
 
                 return message;
-            }
+            }, 
+	connectTimeoutMs: 60000, defaultQueryTimeoutMs: 0, generateHighQualityLinkPreview: true, syncFullHistory: true, markOnlineOnConnect: true
 }
 
 global.conn = makeWASocket(connectionOptions)
@@ -212,19 +215,41 @@ function clearSessions(folder = 'sessions') {
 }
 
 async function connectionUpdate(update) {
-    const { receivedPendingNotifications, connection, lastDisconnect, isOnline, isNewLogin } = update
-  if (isNewLogin) conn.isInit = true
-  if (connection == 'connecting') console.log(chalk.redBright('⚡ Mengaktifkan Bot, Mohon tunggu sebentar...'))
-  if (connection == 'open') console.log(chalk.green('✅ Tersambung'))
-  if (isOnline == true) console.log(chalk.green('Status Aktif'))
-  if (isOnline == false) console.log(chalk.red('Status Mati'))
-  if (receivedPendingNotifications) console.log(chalk.yellow('Menunggu Pesan Baru'))
-  if (connection == 'close') console.log(chalk.red('⏱️ koneksi terputus & mencoba menyambung ulang...'))
-  global.timestamp.connect = new Date
-  if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut) {
-    console.log(global.reloadHandler(true))
-  } 
-  if (global.db.data == null) await global.loadDatabase()
+    const { receivedPendingNotifications, connection, lastDisconnect, isOnline, isNewLogin } = update;
+
+    if (isNewLogin) {
+        conn.isInit = true;
+    }
+
+    if (connection == 'connecting') {
+        console.log(chalk.redBright('⚡ Mengaktifkan Bot, Mohon tunggu sebentar...'));
+    } else if (connection == 'open') {
+        console.log(chalk.green('✅ Tersambung'));
+    }
+
+    if (isOnline == true) {
+        console.log(chalk.green('Status Aktif'));
+    } else if (isOnline == false) {
+        console.log(chalk.red('Status Mati'));
+    }
+
+    if (receivedPendingNotifications) {
+        console.log(chalk.yellow('Menunggu Pesan Baru'));
+    }
+
+    if (connection == 'close') {
+        console.log(chalk.red('⏱️ koneksi terputus & mencoba menyambung ulang...'));
+    }
+
+    global.timestamp.connect = new Date;
+
+    if (lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut && conn.ws.readyState !== CONNECTING) {
+        console.log(await global.reloadHandler(true));
+    }
+
+    if (global.db.data == null) {
+        await global.loadDatabase();
+    }
 }
 
 process.on('uncaughtException', console.error)

@@ -58,7 +58,7 @@ if (command == 'play', 'ytplay', 'youtubeplay') {
     conn.reply(m.chat, 'Terjadi kesalahan. Silakan coba lagi nanti.\nNyari yang bener donk...', m);
   }
 }
-};
+// };
 
 
 if (command == 'ytlist', 'youtubelist', 'ytl') {
@@ -149,14 +149,13 @@ if (command == 'yta', 'ytmp3', 'getaud', 'youtubemp3') {
 }
 
 
-if (command == 'yts', 'ytsearch') {
+if (command == 'yts', 'ytsearch', 'youtubesearch') {
   if (!text) throw `*_Masukkan Judul Video Yang Ingin Kamu Cari!_*\nperintah:\n${usedPrefix + command} Naruto Squad Reaction\n`;
 
   const videoUrl = `https://tr.deployers.repl.co/vid?name=${encodeURIComponent(text)}`;
 
-  // User input for start and end indices
-  const user_input_start = 0; // ini jangan diubah, boleh diubah kalo search nya dimulai dari yang kamu mau
-  const user_input_end = 51; // biar Brutal search nya (max 51)
+  const user_input_start = 0;
+  const user_input_end = 51;
 
   try {
     const response = await fetch(videoUrl);
@@ -169,30 +168,41 @@ if (command == 'yts', 'ytsearch') {
       return;
     }
 
-    // Adjusting the start and end indices based on user input
-    const start = Math.max(0, user_input_start); // Ensuring start is not negative
-    const end = Math.min(videoData.length - 1, user_input_end); // Ensuring end is within the data length
+    const start = Math.max(0, user_input_start);
+    const end = Math.min(videoData.length - 1, user_input_end);
 
     let replyText = '';
     for (let i = start; i <= end; i++) {
       const videoInfo = videoData[i];
-      const name = videoInfo.channel.name;
-      const link = videoInfo.channel.link;
-      const title = videoInfo.title;
-      const type = videoInfo.type;
-      const link_Video = videoInfo.link;
-      const duration = videoInfo.accessibility.duration;
-      const views = videoInfo.viewCount.text;
 
-      replyText += `Video ${i + 1}:\n`;
-      replyText += `duration: ${duration}\n` +
-        `title: ${title}\n` +
-        `link: ${link}\n` +
-        `name: ${name}\n` +
-        `type: ${type}\n` +
-        `link_Video: ${link_Video}\n` +
-        `views: ${views}\n`;
-      replyText += '-'.repeat(30) + '\n';
+      try {
+        if (videoInfo && videoInfo.channel) {
+          const name = videoInfo.channel.name;
+          const link = videoInfo.channel.link;
+
+          replyText += `Video ${i + 1}:\n`;
+          replyText += `name: ${name}\n` +
+            `link: ${link}\n`;
+        } else {
+          replyText += `Video ${i + 1}: Channel information not available\n`;
+        }
+
+        const title = videoInfo.title;
+        const type = videoInfo.type;
+        const link_Video = videoInfo.link;
+        const duration = videoInfo.accessibility.duration;
+        const views = videoInfo.viewCount.text;
+
+        replyText += `duration: ${duration}\n` +
+          `title: ${title}\n` +
+          `type: ${type}\n` +
+          `link_Video: ${link_Video}\n` +
+          `views: ${views}\n`;
+        replyText += '-'.repeat(30) + '\n';
+      } catch (error) {
+        console.error(`Error processing Video ${i + 1}: ${error}`);
+        replyText += `Error processing Video ${i + 1}\n`;
+      }
     }
 
     await m.reply(replyText);
@@ -204,61 +214,73 @@ if (command == 'yts', 'ytsearch') {
 
 // Update by Xnuvers007
 
-if (command == 'getvid', 'ytmp4', 'youtubemp4') {
-  if (!args[0]) throw 'Where`s Url?' // Zod
-  const v = args[0]
+if (command == 'getvid', 'ytmp4', 'youtubemp4','ytv','youtubevideo') {
+  if (!args[0]) throw `Ex:\n${usedPrefix}${command} https://www.youtube.com/shorts/Ezzh2joFrzg\n${usedPrefix}${command} https://www.youtube.com/watch?v=Ezzh2joFrzg`;
 
-  const resolutions = ["144p", "240p", "360p", "480p", "720p", "1080p"]
-  let qu = args[1] && resolutions.includes(args[1]) ? args[1] : "360p"
-  let q = qu.replace('p', '')
+  const v = args[0];
+  const resolutions = ["144p", "240p", "360p", "480p", "720p", "1080p", "720p60", "1080p60"];
 
-  let thumb = {}
+  let yt;
+
   try {
-    const thumb2 = yt.thumbnails[0].url
-    thumb = { jpegThumbnail: thumb2 }
-  } catch (e) {}
-
-  let yt
-  try {
-    yt = await youtubedl(v)
-  } catch {
-    yt = await youtubedlv2(v)
+    yt = await youtubedl(v) || await youtubedlv2(v);
+  } catch (e) {
+    conn.reply(m.chat, e, m);
+    return;
   }
 
-  const title = await yt.title
+  const title = await yt.title;
 
-  let size = ''
-  let dlUrl = ''
-  let selectedResolution = ''
-  let selectedQuality = ''
-  for (let i = resolutions.length - 1; i >= 0; i--) {
-    const res = resolutions[i]
-    if (yt.video[res]) {
-      selectedResolution = res
-      selectedQuality = res.replace('p', '')
-      size = await yt.video[res].fileSizeH
-      dlUrl = await yt.video[res].download()
-      break
+  let success = false;
+  let message1 = `Permintaan download video YouTube. Sedang diproses, mohon bersabar...`;
+  let message = `Details: \n\n`
+
+  m.reply(message1)
+
+  for (let i = 0; i < resolutions.length; i++) {
+    const res = resolutions[i];
+    try {
+      if (yt.video[res]) {
+        const selectedResolution = res;
+        const selectedQuality = res.replace('p', '');
+        const size = await yt.video[res].fileSizeH;
+        const dlUrl = await yt.video[res].download();
+        message += `▢ Title: ${title}\n`;
+        message += `▢ Resolution: ${selectedResolution}\n`;
+        message += `▢ Size: ${size}\n`;
+        message += `▢ Video link: ${dlUrl}\n\n`;
+        success = true;
+        await conn.sendFile(m.chat, dlUrl, 'video.mp4', message, m);
+      }
+    } catch (err) {
+      console.log(`Error downloading ${res}: ${err}`);
     }
   }
 
-  if (dlUrl) {
-    await m.reply(`Permintaan download video YouTube. Sedang diproses, mohon bersabar...`)
+  if (!success) {
+    let dlMessage = `Maaf, video tidak dapat diunduh. Silakan download secara manual menggunakan link berikut:\n\n`;
 
-    await conn.sendMessage(m.chat, { video: { url: dlUrl, caption: title, ...thumb } }, { quoted: m })
+    for (let i = 0; i < resolutions.length; i++) {
+      const res = resolutions[i];
+      try {
+        if (yt.video[res]) {
+          const dlUrl = await yt.video[res].download();
+          dlMessage += `▢ Resolution: ${res}\n`;
+          dlMessage += `▢ Video link: ${dlUrl}\n\n`;
+        }
+      } catch (err) {
+        console.log(`Error obtaining download link for ${res}: ${err}`);
+      }
+    }
 
-    await m.reply(`▢ Title: ${title}
-▢ Resolution: ${selectedResolution}
-▢ Size: ${size}
-▢ Video telah berhasil diunduh!`)
-  } else {
-    await m.reply(`Maaf, video tidak tersedia untuk diunduh.`)
+    await m.reply(dlMessage);
   }
-}
-}
+};
+  
+};
+
 handler.tags = ['downloader']
-handler.command = ['play', 'ytplay', 'youtubeplay', 'ytlist', 'youtubelist', 'ytl', 'yta', 'ytmp3', 'getaud', 'youtubemp3', 'yts', 'youtubesearch', 'getvid', 'ytmp4', 'youtubemp4']
-handler.limit = true
+handler.command = ['play', 'ytplay', 'youtubeplay', 'ytlist', 'youtubelist', 'ytl', 'yta', 'ytmp3', 'getaud', 'youtubemp3', 'yts', 'youtubesearch', 'getvid', 'ytmp4', 'youtubemp4','ytv','youtubevideo']
+handler.limit = true // false
 
-export default handler
-
+export default handler;
